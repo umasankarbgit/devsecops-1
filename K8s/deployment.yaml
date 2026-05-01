@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dockerhub-sample-app
+  labels:
+    app: dockerhub-sample-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dockerhub-sample-app
+  template:
+    metadata:
+      labels:
+        app: dockerhub-sample-app
+    spec:
+      containers:
+        - name: sample-app
+          image: umasankardock/myapp:latest
+          ports:
+            - containerPort: 5000
