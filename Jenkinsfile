@@ -25,23 +25,33 @@ pipeline {
             }
         }
 
-        // ✅ 1. UNIT TESTING (FIXED)
+        // =========================
+        // UNIT TEST STAGE (FIXED)
+        // =========================
         stage('Run Unit Tests') {
             steps {
                 sh '''
                     set -e
                     echo "Running unit tests..."
 
-                    # Install deps in user space (jenkins-safe)
+                    # Install dependencies safely
                     pip3 install --user -r requirements.txt
 
-                    # Run pytest without PATH issue
+                    # FIX: Python import path issue
+                    export PYTHONPATH=$PWD
+
+                    echo "Workspace structure:"
+                    ls -l
+
+                    # Run tests safely
                     python3 -m pytest
                 '''
             }
         }
 
-        // ✅ 2. SONARQUBE SCAN (FIXED)
+        // =========================
+        // SONARQUBE SCAN
+        // =========================
         stage('SonarQube Scan') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
@@ -55,7 +65,9 @@ pipeline {
             }
         }
 
-        // ✅ 3. QUALITY GATE
+        // =========================
+        // QUALITY GATE
+        // =========================
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -64,18 +76,21 @@ pipeline {
             }
         }
 
-        // ✅ 4. FILE SYSTEM SCAN (TRIVY)
+        // =========================
+        // TRIVY FILE SCAN
+        // =========================
         stage('Dependency Scan') {
             steps {
                 sh '''
                     set -e
-                    echo "Scanning dependencies..."
                     trivy fs --exit-code 1 --severity HIGH,CRITICAL .
                 '''
             }
         }
 
-        // ✅ 5. BUILD IMAGE
+        // =========================
+        // BUILD IMAGE
+        // =========================
         stage('Build Docker Image') {
             steps {
                 sh '''
@@ -85,7 +100,9 @@ pipeline {
             }
         }
 
-        // ✅ 6. IMAGE SCAN
+        // =========================
+        // IMAGE SCAN
+        // =========================
         stage('Trivy Image Scan') {
             steps {
                 sh '''
@@ -95,7 +112,9 @@ pipeline {
             }
         }
 
-        // ✅ 7. LOGIN DOCKER HUB
+        // =========================
+        // DOCKER LOGIN
+        // =========================
         stage('Login to Docker Hub') {
             steps {
                 sh '''
@@ -105,7 +124,9 @@ pipeline {
             }
         }
 
-        // ✅ 8. PUSH IMAGE
+        // =========================
+        // PUSH IMAGE
+        // =========================
         stage('Push Image to Docker Hub') {
             steps {
                 sh '''
@@ -115,7 +136,9 @@ pipeline {
             }
         }
 
-        // ✅ 9. DEPLOY TO EKS
+        // =========================
+        // DEPLOY TO EKS
+        // =========================
         stage('Deploy to EKS') {
             steps {
                 withCredentials([[
@@ -124,19 +147,16 @@ pipeline {
                 ]]) {
                     sh '''
                         set -e
-                        echo "Updating kubeconfig..."
+
                         aws eks update-kubeconfig \
                             --region $AWS_REGION \
                             --name $EKS_CLUSTER_NAME
 
-                        echo "Updating image..."
                         sed -i "s|image:.*|image: $FULL_IMAGE|g" K8s/deployment.yaml
 
-                        echo "Deploying..."
                         kubectl apply -f K8s/deployment.yaml
                         kubectl apply -f K8s/service.yaml
 
-                        echo "Checking rollout..."
                         kubectl rollout status deployment/dockerhub-sample-app
                     '''
                 }
