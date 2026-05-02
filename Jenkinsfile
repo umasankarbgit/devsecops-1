@@ -25,17 +25,22 @@ pipeline {
             }
         }
 
-               // =========================
-        // SONARQUBE SCAN
+        // =========================
+        // SONARQUBE SCAN (FIXED)
         // =========================
         stage('SonarQube Scan') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
                     sh '''
                         set -e
+
+                        # FIX: Sonar scanner path issue
+                        export PATH=$PATH:/opt/sonar-scanner/bin
+
                         sonar-scanner \
                         -Dsonar.projectKey=myapp \
-                        -Dsonar.sources=.
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=$SONAR_HOST_URL
                     '''
                 }
             }
