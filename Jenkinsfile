@@ -48,9 +48,7 @@ pipeline {
             }
         }
 
-        // =========================
-        // TRIVY FILE SCAN (SAFE)
-        // =========================
+        // ✅ Dependency Scan (NON-BLOCKING)
         stage('Dependency Scan') {
             steps {
                 sh '''
@@ -58,13 +56,12 @@ pipeline {
 
                     echo "Running Trivy FS scan..."
                     trivy fs --severity HIGH,CRITICAL . || true
+
+                    echo "✅ Continuing pipeline (non-blocking scan)"
                 '''
             }
         }
 
-        // =========================
-        // BUILD IMAGE
-        // =========================
         stage('Build Docker Image') {
             steps {
                 sh '''
@@ -73,23 +70,22 @@ pipeline {
             }
         }
 
-        // =========================
-        // TRIVY IMAGE SCAN (SAFE)
-        // =========================
+        // ✅ Image Scan (FORCED EXIT 0)
         stage('Trivy Image Scan') {
             steps {
                 sh '''
                     export PATH=$PATH:/usr/local/bin
 
-                    echo "Running Trivy Image scan..."
+                    echo "Running Trivy Image Scan..."
+
+                    # NEVER FAIL PIPELINE
                     trivy image --severity HIGH,CRITICAL $FULL_IMAGE || true
+
+                    echo "✅ Vulnerabilities (if any) are ignored for pipeline success"
                 '''
             }
         }
 
-        // =========================
-        // DOCKER LOGIN
-        // =========================
         stage('Login to Docker Hub') {
             steps {
                 sh '''
@@ -99,9 +95,6 @@ pipeline {
             }
         }
 
-        // =========================
-        // PUSH IMAGE
-        // =========================
         stage('Push Image to Docker Hub') {
             steps {
                 sh '''
@@ -110,9 +103,6 @@ pipeline {
             }
         }
 
-        // =========================
-        // DEPLOY TO EKS
-        // =========================
         stage('Deploy to EKS') {
             steps {
                 withCredentials([[
@@ -138,10 +128,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "✅ Pipeline completed successfully (exit code 0)"
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "❌ Pipeline failed"
         }
     }
 }
