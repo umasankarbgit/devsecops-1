@@ -72,19 +72,10 @@ pipeline {
 
         // ✅ Image Scan (FORCED EXIT 0)
         stage('Trivy Image Scan') {
-            steps {
-                sh '''
-                    export PATH=$PATH:/usr/local/bin
-
-                    echo "Running Trivy Image Scan..."
-
-                    # NEVER FAIL PIPELINE
-                    trivy image --severity HIGH,CRITICAL $FULL_IMAGE || true
-
-                    echo "✅ Vulnerabilities (if any) are ignored for pipeline success"
-                '''
-            }
-        }
+    steps {
+        sh 'trivy image --exit-code 0 --severity HIGH,CRITICAL $FULL_IMAGE'
+    }
+}
 
         stage('Login to Docker Hub') {
             steps {
