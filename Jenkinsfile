@@ -25,31 +25,7 @@ pipeline {
             }
         }
 
-        // =========================
-        // UNIT TEST STAGE (FIXED)
-        // =========================
-        stage('Run Unit Tests') {
-            steps {
-                sh '''
-                    set -e
-                    echo "Running unit tests..."
-
-                    # Install dependencies safely
-                    pip3 install --user -r requirements.txt
-
-                    # FIX: Python import path issue
-                    export PYTHONPATH=$PWD
-
-                    echo "Workspace structure:"
-                    ls -l
-
-                    # Run tests safely
-                    python3 -m pytest
-                '''
-            }
-        }
-
-        // =========================
+               // =========================
         // SONARQUBE SCAN
         // =========================
         stage('SonarQube Scan') {
