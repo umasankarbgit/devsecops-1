@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         AWS_REGION = "ap-south-1"
-        EKS_CLUSTER_NAME = "test-eks"
+        EKS_CLUSTER_NAME = "managed-eks-cluster"
 
         DOCKERHUB_CREDS = credentials('dockerhub-creds')
 
