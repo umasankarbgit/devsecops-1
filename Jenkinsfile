@@ -12,6 +12,10 @@ pipeline {
         FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
     }
 
+    options {
+        timestamps()
+    }
+
     stages {
 
         stage('Checkout Source Code') {
@@ -21,33 +25,37 @@ pipeline {
             }
         }
 
-        // ✅ 1. UNIT TESTING
+        // ✅ 1. UNIT TESTING (FIXED)
         stage('Run Unit Tests') {
             steps {
                 sh '''
+                    set -e
                     echo "Running unit tests..."
-                    pip install -r requirements.txt
-                    pytest || exit 1
+
+                    # Install deps in user space (jenkins-safe)
+                    pip3 install --user -r requirements.txt
+
+                    # Run pytest without PATH issue
+                    python3 -m pytest
                 '''
             }
         }
 
-        // ✅ 2. CODE QUALITY + SECURITY SCAN
+        // ✅ 2. SONARQUBE SCAN (FIXED)
         stage('SonarQube Scan') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
                     sh '''
+                        set -e
                         sonar-scanner \
                         -Dsonar.projectKey=myapp \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                        -Dsonar.sources=.
                     '''
                 }
             }
         }
 
-        // ✅ 3. QUALITY GATE (IMPORTANT)
+        // ✅ 3. QUALITY GATE
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -56,10 +64,11 @@ pipeline {
             }
         }
 
-        // ✅ 4. DEPENDENCY SCAN (Trivy FS)
+        // ✅ 4. FILE SYSTEM SCAN (TRIVY)
         stage('Dependency Scan') {
             steps {
                 sh '''
+                    set -e
                     echo "Scanning dependencies..."
                     trivy fs --exit-code 1 --severity HIGH,CRITICAL .
                 '''
@@ -70,21 +79,23 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
+                    set -e
                     docker build -t $FULL_IMAGE .
                 '''
             }
         }
 
-        // ✅ 6. IMAGE SCAN (CRITICAL)
+        // ✅ 6. IMAGE SCAN
         stage('Trivy Image Scan') {
             steps {
                 sh '''
+                    set -e
                     trivy image --exit-code 1 --severity HIGH,CRITICAL $FULL_IMAGE
                 '''
             }
         }
 
-        // ✅ 7. LOGIN
+        // ✅ 7. LOGIN DOCKER HUB
         stage('Login to Docker Hub') {
             steps {
                 sh '''
@@ -98,12 +109,13 @@ pipeline {
         stage('Push Image to Docker Hub') {
             steps {
                 sh '''
+                    set -e
                     docker push $FULL_IMAGE
                 '''
             }
         }
 
-        // ✅ 9. DEPLOY ONLY IF SAFE
+        // ✅ 9. DEPLOY TO EKS
         stage('Deploy to EKS') {
             steps {
                 withCredentials([[
@@ -111,19 +123,33 @@ pipeline {
                     credentialsId: 'aws-creds'
                 ]]) {
                     sh '''
+                        set -e
+                        echo "Updating kubeconfig..."
                         aws eks update-kubeconfig \
-                            --region ap-south-1 \
-                            --name test-eks
+                            --region $AWS_REGION \
+                            --name $EKS_CLUSTER_NAME
 
+                        echo "Updating image..."
                         sed -i "s|image:.*|image: $FULL_IMAGE|g" K8s/deployment.yaml
 
+                        echo "Deploying..."
                         kubectl apply -f K8s/deployment.yaml
                         kubectl apply -f K8s/service.yaml
 
+                        echo "Checking rollout..."
                         kubectl rollout status deployment/dockerhub-sample-app
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs."
         }
     }
 }
